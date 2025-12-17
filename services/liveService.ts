@@ -124,10 +124,11 @@ export class LiveService {
           }
         },
         onclose: () => {
-            console.log("[LiveService] Session closed");
+            console.log("[LiveService] Session closed unexpectedly");
+            // If onclose is triggered but isConnected is true, it means the user didn't initiate it.
+            // We treat this as an error to trigger the retry logic.
             if (this.isConnected) {
-                this.disconnect();
-                callbacks.onClose();
+                this.handleConnectionError(new Error("Session closed unexpectedly"), callbacks);
             }
         },
         onerror: (err: any) => {
