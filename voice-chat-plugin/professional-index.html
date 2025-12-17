@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Professional Voice Chat Assistant</title>
+    <link rel="stylesheet" href="professional-style.css">
+    <!-- 引入 Dexie.js -->
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Professional Voice Chat Assistant</h1>
+            <p>Advanced Browser-Based Voice Interaction with AI</p>
+            <button id="settings-btn" class="settings-btn">⚙️</button>
+        </header>
+
+        <div id="chat-box" class="chat-box">
+            <div class="message system">
+                <div class="bubble">Welcome! Press and hold the microphone button to start speaking.</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="mic-btn" class="mic-btn">
+                <span class="icon">🎤</span>
+                <span class="text">Hold to Talk</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="settings-panel hidden">
+        <div class="panel-overlay" id="panel-overlay"></div>
+        <div class="panel-content">
+            <div class="panel-header">
+                <h3>🔧 Configuration Settings</h3>
+                <button id="close-panel-btn" class="close-btn">×</button>
+            </div>
+            
+            <div class="form-group">
+                <label>Architecture Mode:</label>
+                <select id="config-mode">
+                    <option value="low">Low-Spec (Multimodal Direct)</option>
+                    <option value="mid">Mid-Spec (STT + LLM)</option>
+                    <option value="high">High-Spec (STT + LLM + TTS)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>API Endpoint:</label>
+                <input type="text" id="config-api" placeholder="https://api.example.com/v1/chat">
+            </div>
+            
+            <div class="form-group">
+                <label>API Key:</label>
+                <input type="password" id="config-key" placeholder="sk-...">
+            </div>
+            
+            <div class="form-group">
+                <label>Model Name:</label>
+                <input type="text" id="config-model" placeholder="gpt-4o-mini">
+            </div>
+            
+            <div class="form-group">
+                <label>System Prompt:</label>
+                <textarea id="config-prompt" rows="4" placeholder="You are a helpful AI assistant..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Voice Language:</label>
+                <select id="config-voice-lang">
+                    <option value="en-US">English (US)</option>
+                    <option value="zh-CN" selected>Chinese (Mainland)</option>
+                    <option value="ja-JP">Japanese</option>
+                    <option value="ko-KR">Korean</option>
+                </select>
+            </div>
+
+            <!-- 预设参数说明 -->
+            <div class="preset-info">
+                <h4>Predefined Parameters:</h4>
+                <p><strong>DashScope (Alibaba Cloud):</strong></p>
+                <p>API Key: sk-0ecae1777d2240ea862cdc1d73d5d645b3</p>
+                <p>Endpoint: https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation</p>
+                <br>
+                <p><strong>Zhipu AI:</strong></p>
+                <p>API Key: a049afdafb1b41a0862cdc1d73d5d6eb.YuGYXVGRQEUILpog</p>
+                <p>Endpoint: https://open.bigmodel.cn/api/paas/v4/</p>
+            </div>
+            
+            <div class="panel-actions">
+                <button id="reset-config-btn">Reset Defaults</button>
+                <button id="save-config-btn" class="primary">Save Configuration</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="VoiceChat.js"></script>
+    <script src="db.js"></script>
+    <!-- 引入分包策略 -->
+    <script src="low/strategy.js"></script>
+    <script src="mid/strategy.js"></script>
+    <script src="high/strategy.js"></script>
+    <script>
+        // UI Elements
+        const micBtn = document.getElementById('mic-btn');
+        const chatBox = document.getElementById('chat-box');
+        const btnText = micBtn.querySelector('.text');
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsPanel = document.getElementById('settings-panel');
+        const panelOverlay = document.getElementById('panel-overlay');
+        const closePanelBtn = document.getElementById('close-panel-btn');
+        const saveConfigBtn = document.getElementById('save-config-btn');
+        const resetConfigBtn = document.getElementById('reset-config-btn');
+
+        // Open settings panel
+        settingsBtn.addEventListener('click', async () => {
+            const globalConfig = await db.getConfig('global') || {};
+            const currentMode = globalConfig.currentMode || 'low';
+            
+            document.getElementById('config-mode').value = currentMode;
+            await loadConfigForMode(currentMode);
+            settingsPanel.classList.remove('hidden');
+        });
+
+        // Close panel
+        closePanelBtn.addEventListener('click', () => {
+            settingsPanel.classList.add('hidden');
+        });
+
+        panelOverlay.addEventListener('click', () => {
+            settingsPanel.classList.add('hidden');
+        });
+
+        // Load configuration for a specific mode
+        async function loadConfigForMode(mode) {
+            const config = await db.getConfig(mode) || {};
+            document.getElementById('config-api').value = config.apiEndpoint || '';
+            document.getElementById('config-key').value = config.apiKey || '';
+            document.getElementById('config-model').value = config.model || '';
+            document.getElementById('config-prompt').value = config.systemPrompt || '';
+            document.getElementById('config-voice-lang').value = config.voiceLang || 'zh-CN';
+        }
+
+        // Reset to default configuration
+        resetConfigBtn.addEventListener('click', () => {
+            if (confirm('Reset all configurations to default values?')) {
+                document.getElementById('config-api').value = '';
+                document.getElementById('config-key').value = '';
+                document.getElementById('config-model').value = '';
+                document.getElementById('config-prompt').value = 'You are a helpful AI assistant.';
+                document.getElementById('config-voice-lang').value = 'zh-CN';
+            }
+        });
+
+        // Save configuration
+        saveConfigBtn.addEventListener('click', async () => {
+            const currentMode = document.getElementById('config-mode').value;
+            
+            // Save current mode's specific configuration
+            const modeConfig = {
+                apiEndpoint: document.getElementById('config-api').value,
+                apiKey: document.getElementById('config-key').value,
+                model: document.getElementById('config-model').value,
+                systemPrompt: document.getElementById('config-prompt').value,
+                voiceLang: document.getElementById('config-voice-lang').value
+            };
+            await db.saveConfig(modeConfig, currentMode);
+
+            // Save global configuration (current mode selection)
+            await db.saveConfig({ currentMode: currentMode }, 'global');
+            
+            alert(`Configuration for [${currentMode}] mode saved successfully!`);
+            settingsPanel.classList.add('hidden');
+            
+            // Reload page to apply new configuration
+            location.reload();
+        });
+
+        // Mode switching: auto-save old mode data, load new mode data
+        const modeSelect = document.getElementById('config-mode');
+        let previousMode = 'low';
+
+        settingsBtn.addEventListener('click', async () => {
+            const globalConfig = await db.getConfig('global') || {};
+            previousMode = globalConfig.currentMode || 'low';
+        });
+
+        modeSelect.addEventListener('focus', () => {
+            previousMode = modeSelect.value;
+        });
+
+        modeSelect.addEventListener('change', async () => {
+            const newMode = modeSelect.value;
+            
+            // Save old mode form data
+            const oldConfig = {
+                apiEndpoint: document.getElementById('config-api').value,
+                apiKey: document.getElementById('config-key').value,
+                model: document.getElementById('config-model').value,
+                systemPrompt: document.getElementById('config-prompt').value,
+                voiceLang: document.getElementById('config-voice-lang').value
+            };
+            await db.saveConfig(oldConfig, previousMode);
+            console.log(`Auto-saved [${previousMode}] configuration`);
+
+            // Load new mode data
+            await loadConfigForMode(newMode);
+            previousMode = newMode;
+        });
+
+        // Initialize on page load: clean expired data + load history
+        (async function init() {
+            try {
+                // Auto-clean data older than 7 days
+                await db.clearExpired(7);
+                
+                // Load history records
+                const history = await db.getHistory();
+                history.forEach(msg => {
+                    renderMessage(msg);
+                });
+            } catch (e) {
+                console.error('Database initialization failed:', e);
+            }
+        })();
+
+        // Render message to interface (with delete support)
+        function renderMessage(msg) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${msg.role}`;
+            msgDiv.dataset.id = msg.id;
+
+            let contentHtml = `<div class="bubble">${msg.content}</div>`;
+            const deleteBtn = `<span class="delete-msg" onclick="deleteMessage(${msg.id}, this)">×</span>`;
+            
+            msgDiv.innerHTML = contentHtml + deleteBtn;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Delete single message
+        window.deleteMessage = async (id, btnElement) => {
+            if(confirm('Delete this message?')) {
+                await db.deleteRecord(id);
+                const msgDiv = btnElement.closest('.message');
+                msgDiv.remove();
+            }
+        };
+
+        // Add new message and save
+        async function addMessage(text, type, saveToDB = true) {
+            const record = {
+                role: type,
+                content: text,
+            };
+
+            let id;
+            if (saveToDB && (type === 'user' || type === 'ai')) {
+                try {
+                    id = await db.addRecord(record);
+                } catch (e) {
+                    console.error('Save failed:', e);
+                }
+            }
+
+            renderMessage({ ...record, id });
+        }
+
+        // Initialize plugin
+        const voiceChat = new VoiceChat({
+            apiHandler: async (base64Audio) => {
+                // Read global configuration to determine current mode
+                const globalConfig = await db.getConfig('global') || {};
+                const mode = globalConfig.currentMode || 'low';
+                
+                // Read specific configuration for this mode
+                const config = await db.getConfig(mode) || {};
+                const systemPrompt = config.systemPrompt || 'You are a helpful AI assistant.';
+                
+                // Get local memory (last 10 entries)
+                const history = await db.getHistory(10);
+                
+                // Construct general parameters
+                const params = {
+                    audio: base64Audio,
+                    config: config,
+                    history: history.map(msg => ({
+                        role: msg.role === 'ai' ? 'assistant' : 'user',
+                        content: msg.content
+                    }))
+                };
+
+                console.log(`[${mode.toUpperCase()}] mode initiated - Config:`, config);
+
+                // Strategy dispatch
+                try {
+                    const handler = strategies[mode] || strategies.low;
+                    const result = await handler(params);
+                    return result;
+                } catch (e) {
+                    console.error('API Error:', e);
+                    return "An error occurred, please check network or configuration";
+                }
+            },
+            
+            // State callbacks
+            onStateChange: (state) => {
+                console.log('Current state:', state);
+                switch(state) {
+                    case 'idle':
+                        micBtn.classList.remove('recording', 'processing', 'playing');
+                        btnText.innerText = 'Hold to Talk';
+                        break;
+                    case 'recording':
+                        micBtn.classList.add('recording');
+                        btnText.innerText = 'Listening...';
+                        break;
+                    case 'processing':
+                        micBtn.classList.remove('recording');
+                        micBtn.classList.add('processing');
+                        btnText.innerText = 'Processing...';
+                        break;
+                    case 'playing':
+                        micBtn.classList.remove('processing');
+                        micBtn.classList.add('playing');
+                        btnText.innerText = 'Speaking...';
+                        break;
+                }
+            },
+
+            // Log callback
+            onLog: (msg) => {
+                console.log('[VoiceChat]', msg);
+            },
+
+            // Error callback
+            onError: (err) => {
+                console.error(err);
+                addMessage(`Error: ${err.message}`, 'system');
+                alert('An error occurred, please check console or try again');
+            }
+        });
+
+        // Intercept APIHandler return results to display on UI
+        const originalApiHandler = voiceChat.config.apiHandler;
+        voiceChat.config.apiHandler = async (base64) => {
+            addMessage("(Sent voice message)", 'user');
+            const text = await originalApiHandler(base64);
+            addMessage(text, 'ai');
+            return text;
+        };
+
+        // Interaction logic: Hold to talk (compatible with PC and mobile)
+        
+        // Mobile touch events
+        micBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            voiceChat.startRecording();
+        });
+
+        micBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            voiceChat.stopRecording();
+        });
+
+        // PC mouse events
+        micBtn.addEventListener('mousedown', () => {
+            voiceChat.startRecording();
+        });
+
+        micBtn.addEventListener('mouseup', () => {
+            voiceChat.stopRecording();
+        });
+
+        // Also handle mouseleave to stop recording if mouse leaves button
+        micBtn.addEventListener('mouseleave', () => {
+            if (voiceChat.state === 'recording') {
+                voiceChat.stopRecording();
+            }
+        });
+    </script>
+</body>
+</html>

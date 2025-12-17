@@ -1,0 +1,7 @@
+{
+  "name": "Copy of 村官智能体",
+  "description": "您的可爱AI小伙伴，东里村的百事通，随时为您提供语音导览服务。",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

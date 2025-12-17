@@ -1,0 +1,278 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f5f5f5;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+}
+
+header {
+    padding: 15px;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    background: #fff;
+    z-index: 10;
+}
+
+header h1 {
+    font-size: 18px;
+    color: #333;
+}
+
+header p {
+    font-size: 12px;
+    color: #999;
+    margin-top: 5px;
+}
+
+.chat-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.message {
+    display: flex;
+    margin-bottom: 10px;
+    position: relative; /* 为删除按钮定位 */
+    align-items: center; /* 垂直居中 */
+}
+
+.message:hover .delete-msg {
+    opacity: 1;
+}
+
+.delete-msg {
+    cursor: pointer;
+    color: #ccc;
+    font-size: 18px;
+    margin: 0 8px;
+    opacity: 0; /* 默认隐藏 */
+    transition: opacity 0.2s;
+    user-select: none;
+}
+
+.delete-msg:hover {
+    color: #ff3b30;
+}
+
+/* 移动端适配：总是显示删除按钮，或者点击显示 */
+@media (max-width: 768px) {
+    .delete-msg {
+        opacity: 0.5;
+        font-size: 16px;
+    }
+}
+
+.message.user {
+    justify-content: flex-end;
+    flex-direction: row-reverse; /* 让删除按钮在左侧 */
+}
+
+.message.ai {
+    justify-content: flex-start;
+    flex-direction: row; /* 让删除按钮在右侧 */
+}
+
+
+.message.system {
+    justify-content: center;
+}
+
+.bubble {
+    max-width: 80%;
+    padding: 10px 15px;
+    border-radius: 15px;
+    font-size: 15px;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.message.user .bubble {
+    background-color: #007AFF;
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.message.ai .bubble {
+    background-color: #E9E9EB;
+    color: black;
+    border-bottom-left-radius: 4px;
+}
+
+.message.system .bubble {
+    background-color: transparent;
+    color: #999;
+    font-size: 12px;
+    padding: 5px;
+}
+
+.controls {
+    padding: 20px;
+    background: #fff;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.mic-btn {
+    width: 100%;
+    max-width: 300px;
+    height: 50px;
+    border-radius: 25px;
+    border: none;
+    background: #007AFF;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    -webkit-user-select: none;
+    outline: none;
+}
+
+.mic-btn:active {
+    transform: scale(0.98);
+}
+
+/* 状态样式 */
+.mic-btn.recording {
+    background-color: #FF3B30;
+    animation: pulse 1.5s infinite;
+}
+
+.mic-btn.processing {
+    background-color: #FF9500;
+    cursor: wait;
+}
+
+.mic-btn.playing {
+    background-color: #34C759;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+}
+
+/* 秘密面板样式 */
+.secret-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+}
+
+.secret-panel.hidden {
+    display: none;
+}
+
+.panel-content {
+    background: white;
+    width: 90%;
+    max-width: 400px;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.panel-content h3 {
+    margin-bottom: 15px;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 14px;
+    color: #666;
+    font-weight: bold;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    border-color: #007AFF;
+}
+
+.panel-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.panel-actions button {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    background: white;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.panel-actions button.primary {
+    background: #007AFF;
+    color: white;
+    border: none;
+}
+
+.panel-actions button:active {
+    transform: scale(0.98);
+}

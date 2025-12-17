@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 语音助手</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 引入 Dexie.js -->
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <!-- 秘密入口：点击标题 3 次触发 -->
+            <h1 id="secret-trigger" style="user-select: none; cursor: default;">AI 语音助手</h1>
+            <p>点击麦克风开始对话</p>
+            <button id="clear-btn" style="position: absolute; right: 15px; top: 15px; border: none; background: none; color: #999; cursor: pointer;">🗑️</button>
+        </header>
+
+        <div id="chat-box" class="chat-box">
+            <div class="message system">
+                <div class="bubble">你好！我是你的 AI 助手，请按住下方按钮说话。</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="mic-btn" class="mic-btn">
+                <span class="icon">🎤</span>
+                <span class="text">按住 说话</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 秘密配置面板 (默认隐藏) -->
+    <div id="secret-panel" class="secret-panel hidden">
+        <div class="panel-content">
+            <h3>🔧 开发者配置</h3>
+            <div class="form-group">
+                <label>Mode (架构模式):</label>
+                <select id="config-mode">
+                    <option value="low">低配版 (Low-Spec / Multimodal)</option>
+                    <option value="mid">中配版 (Mid-Spec / Classic)</option>
+                    <option value="high">高配版 (High-Spec / Pro)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>API Endpoint:</label>
+                <input type="text" id="config-api" placeholder="https://api.example.com/v1/chat">
+            </div>
+            <div class="form-group">
+                <label>API Key:</label>
+                <input type="password" id="config-key" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+                <label>Model Name:</label>
+                <input type="text" id="config-model" placeholder="gpt-4o-mini">
+            </div>
+            <div class="form-group">
+                <label>System Prompt:</label>
+                <textarea id="config-prompt" rows="3" placeholder="你是一个..."></textarea>
+            </div>
+            <div class="preset-info">
+                <h4>预设参数:</h4>
+                <p><strong>阿里云(DashScope):</strong></p>
+                <p>API Key: sk-0ecae1777d2240ea862cdc1d73d5d645b3</p>
+                <p>Endpoint: https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation</p>
+                <br>
+                <p><strong>智谱AI:</strong></p>
+                <p>API Key: a049afdafb1b41a0862cdc1d73d5d6eb.YuGYXVGRQEUILpog</p>
+                <p>Endpoint: https://open.bigmodel.cn/api/paas/v4/</p>
+            </div>
+            <div class="panel-actions">
+                <button id="save-config-btn" class="primary">保存配置</button>
+                <button id="close-panel-btn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="VoiceChat.js"></script>
+    <script src="db.js"></script>
+    <script src="version-manager.js"></script>
+    <!-- 引入分包策略 -->
+    <script src="low/strategy.js"></script>
+    <script src="mid/strategy.js"></script>
+    <script src="high/strategy.js"></script>
+    <script>
+        // UI 元素
+        const micBtn = document.getElementById('mic-btn');
+        const chatBox = document.getElementById('chat-box');
+        const btnText = micBtn.querySelector('.text');
+        const clearBtn = document.getElementById('clear-btn');
+
+        // --- 秘密入口逻辑 ---
+        const secretTrigger = document.getElementById('secret-trigger');
+        const secretPanel = document.getElementById('secret-panel');
+        const closePanelBtn = document.getElementById('close-panel-btn');
+        const saveConfigBtn = document.getElementById('save-config-btn');
+        
+        let clickCount = 0;
+        let clickTimer = null;
+
+        // 1. 触发逻辑：连续点击 3 次标题
+        secretTrigger.addEventListener('click', () => {
+            clickCount++;
+            
+            // 500ms 内没有继续点击则重置
+            if (clickTimer) clearTimeout(clickTimer);
+            clickTimer = setTimeout(() => { clickCount = 0; }, 500);
+
+            if (clickCount === 3) {
+                const pwd = prompt("请输入开发者密码：");
+                if (pwd === "ircoco000") {
+                    openSecretPanel();
+                } else {
+                    alert("密码错误");
+                }
+                clickCount = 0;
+            }
+        });
+
+        // 2. 打开面板并回显配置
+        async function openSecretPanel() {
+            // 1. 先获取全局配置 (主要是当前选中的 mode)
+            const currentVersion = await globalDB.getCurrentVersion();
+            const mode = currentVersion || 'low';
+            
+            document.getElementById('config-mode').value = mode;
+            
+            // 2. 加载该模式下的具体配置
+            await loadConfigForMode(mode);
+            
+            secretPanel.classList.remove('hidden');
+        }
+
+        // 辅助：加载指定模式的配置到表单
+        async function loadConfigForMode(mode) {
+            // 使用版本管理器获取配置
+            const config = await versionManager.getVersionConfig(mode) || {};
+            document.getElementById('config-api').value = config.apiEndpoint || '';
+            document.getElementById('config-key').value = config.apiKey || '';
+            document.getElementById('config-model').value = config.model || '';
+            document.getElementById('config-prompt').value = config.systemPrompt || '';
+        }
+
+        // 监听模式切换：自动保存旧模式数据，加载新模式数据
+        const modeSelect = document.getElementById('config-mode');
+        let previousMode = 'low'; // 记录上一次的模式
+
+        // 面板打开时初始化 previousMode
+        secretTrigger.addEventListener('click', async () => {
+             // ... (existing logic) ...
+             if (clickCount === 3) {
+                 // ...
+                 if (pwd === "ircoco000") {
+                     const currentVersion = await globalDB.getCurrentVersion();
+                     previousMode = currentVersion || 'low';
+                     openSecretPanel();
+                 }
+                 // ...
+             }
+        });
+
+        modeSelect.addEventListener('focus', () => {
+            previousMode = modeSelect.value;
+        });
+
+        modeSelect.addEventListener('change', async () => {
+            const newMode = modeSelect.value;
+            
+            // 1. 保存旧模式的表单数据
+            const oldConfig = {
+                apiEndpoint: document.getElementById('config-api').value,
+                apiKey: document.getElementById('config-key').value,
+                model: document.getElementById('config-model').value,
+                systemPrompt: document.getElementById('config-prompt').value
+            };
+            await versionManager.saveVersionConfig(previousMode, oldConfig);
+            console.log(`已自动保存 [${previousMode}] 配置`);
+
+            // 2. 加载新模式的数据
+            await loadConfigForMode(newMode);
+            
+            // 更新指针
+            previousMode = newMode;
+        });
+
+        // 3. 关闭面板
+        closePanelBtn.addEventListener('click', () => {
+            secretPanel.classList.add('hidden');
+        });
+
+        // 4. 保存配置 (最终保存)
+        saveConfigBtn.addEventListener('click', async () => {
+            const currentMode = document.getElementById('config-mode').value;
+            
+            // 1. 保存当前模式的具体配置到版本专用数据库
+            const modeConfig = {
+                apiEndpoint: document.getElementById('config-api').value,
+                apiKey: document.getElementById('config-key').value,
+                model: document.getElementById('config-model').value,
+                systemPrompt: document.getElementById('config-prompt').value
+            };
+            await versionManager.saveVersionConfig(currentMode, modeConfig);
+
+            // 2. 保存全局配置 (记录当前选中的模式)
+            await globalDB.setCurrentVersion(currentMode);
+            
+            alert(`[${currentMode}] 模式配置已保存！`);
+            secretPanel.classList.add('hidden');
+            
+            // 渲染页面以应用新配置
+            location.reload();
+        });
+        // --- 秘密入口逻辑结束 ---
+
+        // 页面加载时：初始化系统
+        (async function init() {
+            try {
+                // 1. 初始化全局数据库
+                await globalDB.init();
+                
+                // 2. 初始化版本管理器（会加载各版本策略和数据库）
+                await versionManager.initialize();
+                
+                // 3. 获取当前版本的数据库实例
+                const currentVersion = await globalDB.getCurrentVersion();
+                const currentDB = versionManager.getCurrentDB() || versionManager.getDB('low');
+                
+                // 4. 加载历史记录
+                const history = await currentDB.getHistory();
+                history.forEach(msg => {
+                    renderMessage(msg);
+                });
+            } catch (e) {
+                console.error('Init failed:', e);
+            }
+        })();
+
+        // 清空历史
+        clearBtn.addEventListener('click', async () => {
+            if(confirm('确定要清空聊天记录吗？')) {
+                // 清空当前版本的数据库历史记录
+                const currentDB = versionManager.getCurrentDB();
+                await currentDB.clearAll();
+                chatBox.innerHTML = '<div class="message system"><div class="bubble">记录已清空</div></div>';
+            }
+        });
+
+        // 渲染消息到界面 (支持删除)
+        function renderMessage(msg) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${msg.role}`;
+            msgDiv.dataset.id = msg.id; // 绑定 ID 用于删除
+
+            // 消息内容
+            let contentHtml = `<div class="bubble">${msg.content}</div>`;
+            
+            // 删除按钮 (仅在 hover 或长按时显示，这里简化为一直存在的小图标)
+            const deleteBtn = `<span class="delete-msg" onclick="deleteMessage(${msg.id}, this)">×</span>`;
+            
+            msgDiv.innerHTML = contentHtml + deleteBtn;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // 删除单条消息
+        window.deleteMessage = async (id, btnElement) => {
+            if(confirm('删除这条记录？')) {
+                // 从当前版本的数据库删除记录
+                const currentDB = versionManager.getCurrentDB();
+                await currentDB.deleteRecord(id);
+                // 移除 DOM
+                const msgDiv = btnElement.closest('.message');
+                msgDiv.remove();
+            }
+        };
+
+        // 辅助：添加新消息并保存
+        async function addMessage(text, type, saveToDB = true) {
+            // 1. 构造数据对象
+            const record = {
+                role: type,
+                content: text,
+                // 如果有音频数据也可以存: audioBase64: ...
+            };
+
+            // 2. 保存到数据库 (获取 ID)
+            let id;
+            if (saveToDB && (type === 'user' || type === 'ai')) {
+                try {
+                    // 保存到当前版本的数据库
+                    const currentDB = versionManager.getCurrentDB();
+                    id = await currentDB.addRecord(record);
+                } catch (e) {
+                    console.error('Save failed:', e);
+                }
+            }
+
+            // 3. 渲染
+            renderMessage({ ...record, id });
+        }
+
+        // 初始化插件
+        const voiceChat = new VoiceChat({
+            // 核心：配置你的 API 调用逻辑
+            apiHandler: async (base64Audio) => {
+                // 0. 获取当前模式
+                const currentVersion = await globalDB.getCurrentVersion();
+                const mode = currentVersion || 'low';
+                
+                // 切换版本管理器到当前模式
+                versionManager.switchVersion(mode);
+                
+                // 1. 读取该模式的专属配置
+                const config = await versionManager.getVersionConfig(mode) || {};
+                const systemPrompt = config.systemPrompt || '你是一个幽默风趣的AI助手。';
+                
+                // 2. 获取本地记忆 (最近 10 条)
+                const history = await versionManager.getCurrentDB().getHistory(10);
+                
+                // 3. 构造通用参数 (Params)
+                const params = {
+                    audio: base64Audio,
+                    config: config, // 传入的是当前模式的专属配置
+                    history: history.map(msg => ({
+                        role: msg.role === 'ai' ? 'assistant' : 'user',
+                        content: msg.content
+                    }))
+                };
+
+                console.log(`[${mode.toUpperCase()}] 模式启动 - Config:`, config);
+
+                // 4. 策略分发 (Strategy Dispatch)
+                // 根据配置的模式，调用版本管理器中对应的函数
+                try {
+                    const handler = versionManager.getStrategy(mode) || versionManager.getStrategy('low');
+                    const result = await handler(params);
+                    return result;
+                } catch (e) {
+                    console.error('API Error:', e);
+                    return "发生错误，请检查网络或配置";
+                }
+            },
+            
+            // 状态回调
+            onStateChange: (state) => {
+                console.log('当前状态:', state);
+                switch(state) {
+                    case 'idle':
+                        micBtn.classList.remove('recording', 'processing', 'playing');
+                        btnText.innerText = '按住 说话';
+                        break;
+                    case 'recording':
+                        micBtn.classList.add('recording');
+                        btnText.innerText = '正在聆听...';
+                        break;
+                    case 'processing':
+                        micBtn.classList.remove('recording');
+                        micBtn.classList.add('processing');
+                        btnText.innerText = '思考中...';
+                        break;
+                    case 'playing':
+                        micBtn.classList.remove('processing');
+                        micBtn.classList.add('playing');
+                        btnText.innerText = '正在回复...';
+                        break;
+                }
+            },
+
+            // 日志回调
+            onLog: (msg) => {
+                console.log('[VoiceChat]', msg);
+            },
+
+            // 错误回调
+            onError: (err) => {
+                console.error(err);
+                addMessage(`出错了: ${err.message}`, 'system');
+                alert('发生错误，请查看控制台或重试');
+            }
+        });
+
+        // 交互逻辑：按住说话 (兼容 PC 和 移动端)
+        
+        // 移动端 Touch 事件
+        micBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // 防止滚动
+            voiceChat.startRecording();
+        });
+
+        micBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            voiceChat.stopRecording();
+        });
+
+        // PC端 Mouse 事件
+        micBtn.addEventListener('mousedown', () => {
+            voiceChat.startRecording();
+        });
+
+        micBtn.addEventListener('mouseup', () => {
+            voiceChat.stopRecording();
+        });
+
+        // 拦截 APIHandler 的返回结果来显示在 UI 上
+        // 由于 VoiceChat 内部直接调用了 apiHandler 并处理了 TTS，
+        // 我们需要稍微修改一下 apiHandler 或者利用 VoiceChat 的设计。
+        // 这里的 apiHandler 是我们传入的，所以我们可以在这里做 UI 更新。
+        const originalApiHandler = voiceChat.config.apiHandler;
+        voiceChat.config.apiHandler = async (base64) => {
+            addMessage("（发送了一段语音）", 'user');
+            const text = await originalApiHandler(base64);
+            addMessage(text, 'ai');
+            return text;
+        };
+
+    </script>
+</body>
+</html>
