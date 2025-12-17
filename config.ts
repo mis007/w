@@ -2,14 +2,39 @@
 // Unified Configuration File
 
 // API Key Logic
+// We accept keys from the environment or fall back to the provided hardcoded keys.
 const envApiKey = process.env.API_KEY;
 
+// The user provided two keys. We include them here as fallbacks.
+// In a production environment, it is best practice to set these in the environment variables,
+// but for this specific "fix my deployment" request, we include them to ensure it works immediately.
+const FALLBACK_KEYS = [
+    'AIzaSyDj_dBkgo-CHIh6_JEliYHN05ocpVCKcok',
+    'AIzaSyDOwx49dtscB5l8kuseZPXKC5CTJsB3jks'
+];
+
 export const getNextApiKey = (): string => {
-    if (!envApiKey || envApiKey === 'undefined' || envApiKey === '') {
-        console.error("API_KEY is missing in environment variables.");
+    let keys: string[] = [];
+
+    // 1. Try to get key(s) from environment
+    if (envApiKey && envApiKey !== 'undefined' && envApiKey !== '') {
+        // Assume environment variable might be comma-separated if multiple are provided
+        keys = envApiKey.split(',').map(k => k.trim()).filter(k => k !== '');
+    }
+
+    // 2. If no environment keys found, use fallbacks
+    if (keys.length === 0) {
+        keys = FALLBACK_KEYS;
+    }
+
+    if (keys.length === 0) {
+        console.error("API_KEY is missing in environment variables and no fallbacks available.");
         return '';
     }
-    return envApiKey;
+
+    // 3. Randomly select a key (Simple rotation strategy)
+    const randomIndex = Math.floor(Math.random() * keys.length);
+    return keys[randomIndex];
 };
 
 // Base URL Handling
