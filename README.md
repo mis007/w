@@ -12,9 +12,41 @@ View your app in AI Studio: https://ai.studio/apps/drive/1EYrWfgpGnG1nJJ25LjP4Jz
 
 **Prerequisites:**  Node.js
 
+### Setup Instructions
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Configure API Key (Required):**
+   
+   Create a `.env.local` file from the example:
+   ```bash
+   cp .env.example .env.local
+   ```
+   
+   Set your Gemini API key in `.env.local`:
+   ```bash
+   API_KEY=your_api_key_here
+   ```
+   
+   - Get your API key from: https://aistudio.google.com/app/apikey
+   - **Important:** Never commit your `.env.local` file to git
+   - You can specify multiple keys separated by commas for load balancing
+
+3. **Optional: Configure API Base URL**
+   
+   By default, the app uses `https://router.shengsuanyun.com/api` for better accessibility in Mainland China. To use a different endpoint, set:
+   ```bash
+   API_BASE_URL=https://your-custom-endpoint.com
+   ```
+
+4. **Run the app:**
+   ```bash
+   npm run dev
+   ```
+
+### Security Note
+
+🔒 **API keys must NEVER be committed to the repository.** Always use environment variables or `.env.local` files for sensitive configuration. The `.gitignore` file is configured to prevent accidental commits of these files.

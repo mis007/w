@@ -2,39 +2,68 @@
 // Unified Configuration File
 
 // API Key Logic
+// API keys MUST be provided via environment variables for security.
+// Hardcoding API keys in source code is a security risk and should never be done.
 const envApiKey = process.env.API_KEY;
 
+// SECURITY: Fallback keys have been removed. API keys must be set via environment variables.
+// To configure your API key, set the API_KEY environment variable or create a .env.local file.
+// Example: API_KEY=your_api_key_here
+const FALLBACK_KEYS: string[] = [];
+
 export const getNextApiKey = (): string => {
-    if (!envApiKey || envApiKey === 'undefined' || envApiKey === '') {
-        console.error("API_KEY is missing in environment variables.");
+    let keys: string[] = [];
+
+    // 1. Try to get key(s) from environment
+    if (envApiKey && envApiKey !== 'undefined' && envApiKey !== '') {
+        // Assume environment variable might be comma-separated if multiple are provided
+        keys = envApiKey.split(',').map(k => k.trim()).filter(k => k !== '');
+    }
+
+    // 2. If no environment keys found, use fallbacks (now empty for security)
+    if (keys.length === 0) {
+        keys = FALLBACK_KEYS;
+    }
+
+    if (keys.length === 0) {
+        console.error("❌ API_KEY is required! Please set it in your environment variables.");
+        console.error("📝 Example: API_KEY=your_api_key_here");
+        console.error("💡 For local development, create a .env.local file with your API key.");
+        console.error("🔗 Get your API key from: https://aistudio.google.com/app/apikey");
         return '';
     }
-    return envApiKey;
+
+    // 3. Randomly select a key (Simple rotation strategy)
+    const randomIndex = Math.floor(Math.random() * keys.length);
+    return keys[randomIndex];
 };
 
 // Base URL Handling
-// GLOBAL_BASE_URL: Standard Google Endpoint
-// CN_BASE_URL: Dedicated Proxy/Relay for Mainland China (Placeholder logic)
+// To ensure accessibility in Mainland China, we enforce the Shengsuanyun proxy as the default.
+const SHENGSUAN_API_BASE_URL = 'https://router.shengsuanyun.com/api';
+
 const envBaseUrl = process.env.API_BASE_URL;
+
+// If environment variable is present and valid, use it. Otherwise, default to Shengsuanyun.
 const cleanBaseUrl = (
     envBaseUrl && 
     typeof envBaseUrl === 'string' && 
     envBaseUrl !== "undefined" && 
     envBaseUrl !== "null" && 
     envBaseUrl.trim() !== ""
-) ? envBaseUrl : undefined;
+) ? envBaseUrl : SHENGSUAN_API_BASE_URL;
 
 export const CONFIG = {
   getNextApiKey,
+  // Use the computed URL (Env > Shengsuan Default)
   API_BASE_URL: cleanBaseUrl,
   
-  // Potential CN Proxy URL (In production, this would be your domestic relay server)
-  // For this demo, it falls back to the standard URL, but the architecture allows separation.
+  // CN Proxy URL (also uses the computed URL)
   CN_API_BASE_URL: cleanBaseUrl, 
 
   // Model Versions
   MODELS: {
-    LIVE: 'gemini-2.5-flash-native-audio-preview-09-2025', 
+    LIVE: 'google/gemini-2.5-flash-live',
     TEXT: 'gemini-2.5-flash',
     TTS: 'gemini-2.5-flash-preview-tts', 
   },

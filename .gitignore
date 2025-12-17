@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+package-lock.json
+
+# Environment variables (API keys, secrets, etc.)
+.env
+.env.local
+.env.*.local
 
 # Editor directories and files
 .vscode/*
