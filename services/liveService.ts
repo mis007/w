@@ -21,16 +21,23 @@ export class LiveService {
   private source: MediaStreamAudioSourceNode | null = null;
   private isConnected: boolean = false;
   
+  // Retry Logic State
+  private retryCount: number = 0;
+  private maxRetries: number = 3;
+  private retryDelayMs: number = 1000;
+
   constructor() {
     const apiKey = getNextApiKey();
     if (!apiKey) {
         throw new Error("No API_KEY available");
     }
     
+    // Configure client with custom base URL if present
     const options: any = { apiKey: apiKey };
     
-    if (CONFIG.API_BASE_URL && typeof CONFIG.API_BASE_URL === 'string' && CONFIG.API_BASE_URL.startsWith('http')) {
+    if (CONFIG.API_BASE_URL && typeof CONFIG.API_BASE_URL === 'string' && CONFIG.API_BASE_URL.trim() !== '') {
       let url = CONFIG.API_BASE_URL;
+      // Remove trailing slash if present, SDK usually handles this but good to be safe
       if (url.endsWith('/')) {
         url = url.slice(0, -1);
       }
@@ -42,24 +49,32 @@ export class LiveService {
 
   async connect(callbacks: LiveServiceCallbacks) {
     this.isConnected = true;
-    
+    this.retryCount = 0; // Reset retries on new manual connection attempt
+    await this.attemptConnection(callbacks);
+  }
+
+  private async attemptConnection(callbacks: LiveServiceCallbacks) {
     // 1. Initialize Audio Contexts
     try {
-        this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+        if (!this.inputAudioContext || this.inputAudioContext.state === 'closed') {
+             this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+        }
         await this.inputAudioContext.resume();
     } catch (e) {
         this.cleanup();
-        callbacks.onError(new Error("Audio subsystem initialization failed"));
+        this.handleConnectionError(new Error("Audio subsystem initialization failed"), callbacks);
         return;
     }
 
     // 2. Request Microphone Access
     try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!this.mediaStream) {
+          this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
     } catch (e) {
       this.cleanup();
       console.error("Microphone access denied:", e);
-      callbacks.onError(new Error("Microphone access denied"));
+      callbacks.onError(new Error("Microphone access denied")); // No retry for permission denied
       return;
     }
 
@@ -68,7 +83,8 @@ export class LiveService {
       model: CONFIG.MODELS.LIVE,
       callbacks: {
         onopen: () => {
-            console.log(`[LiveService] Connected to ${CONFIG.MODELS.LIVE}`);
+            console.log(`[LiveService] Connected to ${CONFIG.MODELS.LIVE} via ${CONFIG.API_BASE_URL}`);
+            this.retryCount = 0; // Reset retries on successful connection
             callbacks.onOpen();
             this.startAudioStreaming();
         },
@@ -103,6 +119,9 @@ export class LiveService {
         onclose: () => {
             console.log("[LiveService] Session closed");
             if (this.isConnected) {
+                // If closed unexpectedly, treat as error/retry opportunity
+                // But typically close is intentional or final.
+                // We'll let disconnect handle cleanup.
                 this.disconnect();
                 callbacks.onClose();
             }
@@ -110,8 +129,7 @@ export class LiveService {
         onerror: (err: any) => {
             console.error("[LiveService] Protocol Error:", err);
             if (this.isConnected) {
-                this.disconnect();
-                callbacks.onError(new Error("Connection protocol error"));
+                this.handleConnectionError(new Error("Connection protocol error"), callbacks);
             }
         }
       },
@@ -133,14 +151,42 @@ export class LiveService {
         this.sessionPromise.catch((err) => {
             console.error("[LiveService] Connection Handshake Failed:", err);
             if (this.isConnected) {
-                this.disconnect();
-                callbacks.onError(err instanceof Error ? err : new Error("Connection failed"));
+                this.handleConnectionError(err instanceof Error ? err : new Error("Connection failed"), callbacks);
             }
         });
     } catch (e) {
-        this.disconnect();
-        callbacks.onError(e instanceof Error ? e : new Error("Failed to initiate connection"));
+        this.handleConnectionError(e instanceof Error ? e : new Error("Failed to initiate connection"), callbacks);
     }
+  }
+
+  private handleConnectionError(error: Error, callbacks: LiveServiceCallbacks) {
+      if (this.retryCount < this.maxRetries) {
+          this.retryCount++;
+          const delay = this.retryDelayMs * this.retryCount;
+          console.log(`[LiveService] Connection failed, retrying in ${delay}ms... (Attempt ${this.retryCount}/${this.maxRetries})`);
+
+          // Optionally notify user via a special callback or just log
+          // For now, we silent retry but if we wanted to show UI updates we'd need a new callback type
+
+          // Clean up partial state before retry (but keep media stream if possible to avoid re-prompt)
+          if (this.sessionPromise) {
+              this.sessionPromise = null;
+          }
+          if (this.processor) {
+              this.processor.disconnect();
+              this.processor = null;
+          }
+
+          setTimeout(() => {
+              if (this.isConnected) { // Only retry if user hasn't cancelled
+                  this.attemptConnection(callbacks);
+              }
+          }, delay);
+      } else {
+          console.error("[LiveService] Max retries reached. Failing.");
+          this.disconnect();
+          callbacks.onError(error);
+      }
   }
 
   disconnect() {
