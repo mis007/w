@@ -38,23 +38,26 @@ export const getNextApiKey = (): string => {
 };
 
 // Base URL Handling
-// GLOBAL_BASE_URL: Standard Google Endpoint
-// CN_BASE_URL: Dedicated Proxy/Relay for Mainland China (Placeholder logic)
+// To ensure accessibility in Mainland China, we enforce the Shengsuanyun proxy as the default.
+const SHENGSUAN_API_BASE_URL = 'https://router.shengsuanyun.com/api';
+
 const envBaseUrl = process.env.API_BASE_URL;
+
+// If environment variable is present and valid, use it. Otherwise, default to Shengsuanyun.
 const cleanBaseUrl = (
     envBaseUrl && 
     typeof envBaseUrl === 'string' && 
     envBaseUrl !== "undefined" && 
     envBaseUrl !== "null" && 
     envBaseUrl.trim() !== ""
-) ? envBaseUrl : undefined;
+) ? envBaseUrl : SHENGSUAN_API_BASE_URL;
 
 export const CONFIG = {
   getNextApiKey,
+  // Use the computed URL (Env > Shengsuan Default)
   API_BASE_URL: cleanBaseUrl,
   
-  // Potential CN Proxy URL (In production, this would be your domestic relay server)
-  // For this demo, it falls back to the standard URL, but the architecture allows separation.
+  // CN Proxy URL (also uses the computed URL)
   CN_API_BASE_URL: cleanBaseUrl, 
 
   // Model Versions
