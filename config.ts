@@ -2,15 +2,14 @@
 // Unified Configuration File
 
 // API Key Logic
-// We accept keys from the environment or fall back to the provided hardcoded keys.
+// API keys MUST be provided via environment variables for security.
+// Hardcoding API keys in source code is a security risk and should never be done.
 const envApiKey = process.env.API_KEY;
 
-// The user provided two keys. We include them here as fallbacks.
-// In a production environment, it is best practice to set these in the environment variables,
-// but for this specific "fix my deployment" request, we include them to ensure it works immediately.
-const FALLBACK_KEYS = [
-    'GoVWdyVS93_9_fN4kkUTVeQKJNZwu_hzfngNuq7Nqs2Sw_CSrPDL04lewmwJN1jqPUDmZIbaAx-JnbUHZvUvpANlJC3Q0HoEAg6e2w'
-];
+// SECURITY: Fallback keys have been removed. API keys must be set via environment variables.
+// To configure your API key, set the API_KEY environment variable or create a .env.local file.
+// Example: API_KEY=your_api_key_here
+const FALLBACK_KEYS: string[] = [];
 
 export const getNextApiKey = (): string => {
     let keys: string[] = [];
@@ -21,13 +20,16 @@ export const getNextApiKey = (): string => {
         keys = envApiKey.split(',').map(k => k.trim()).filter(k => k !== '');
     }
 
-    // 2. If no environment keys found, use fallbacks
+    // 2. If no environment keys found, use fallbacks (now empty for security)
     if (keys.length === 0) {
         keys = FALLBACK_KEYS;
     }
 
     if (keys.length === 0) {
-        console.error("API_KEY is missing in environment variables and no fallbacks available.");
+        console.error("❌ API_KEY is required! Please set it in your environment variables.");
+        console.error("📝 Example: API_KEY=your_api_key_here");
+        console.error("💡 For local development, create a .env.local file with your API key.");
+        console.error("🔗 Get your API key from: https://aistudio.google.com/app/apikey");
         return '';
     }
 
