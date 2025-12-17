@@ -26,18 +26,25 @@ export class LiveService {
   private maxRetries: number = 3;
   private retryDelayMs: number = 1000;
 
-  constructor() {
+  // Configuration State
+  private currentBaseUrl: string | undefined;
+  private currentModel: string;
+
+  constructor(baseUrl?: string, model?: string) {
     const apiKey = getNextApiKey();
     if (!apiKey) {
         throw new Error("No API_KEY available");
     }
     
-    // Configure client with custom base URL if present
+    // Store configuration
+    this.currentBaseUrl = baseUrl || CONFIG.API_BASE_URL;
+    this.currentModel = model || CONFIG.MODELS.LIVE;
+
     const options: any = { apiKey: apiKey };
     
-    if (CONFIG.API_BASE_URL && typeof CONFIG.API_BASE_URL === 'string' && CONFIG.API_BASE_URL.trim() !== '') {
-      let url = CONFIG.API_BASE_URL;
-      // Remove trailing slash if present, SDK usually handles this but good to be safe
+    if (this.currentBaseUrl && typeof this.currentBaseUrl === 'string' && this.currentBaseUrl.trim() !== '') {
+      let url = this.currentBaseUrl;
+      // Remove trailing slash if present
       if (url.endsWith('/')) {
         url = url.slice(0, -1);
       }
@@ -80,10 +87,10 @@ export class LiveService {
 
     // 3. Configure Live Session
     const config = {
-      model: CONFIG.MODELS.LIVE,
+      model: this.currentModel, // Use the configured model
       callbacks: {
         onopen: () => {
-            console.log(`[LiveService] Connected to ${CONFIG.MODELS.LIVE} via ${CONFIG.API_BASE_URL}`);
+            console.log(`[LiveService] Connected to ${this.currentModel} via ${this.currentBaseUrl || 'default'}`);
             this.retryCount = 0; // Reset retries on successful connection
             callbacks.onOpen();
             this.startAudioStreaming();
@@ -119,9 +126,6 @@ export class LiveService {
         onclose: () => {
             console.log("[LiveService] Session closed");
             if (this.isConnected) {
-                // If closed unexpectedly, treat as error/retry opportunity
-                // But typically close is intentional or final.
-                // We'll let disconnect handle cleanup.
                 this.disconnect();
                 callbacks.onClose();
             }
@@ -165,10 +169,6 @@ export class LiveService {
           const delay = this.retryDelayMs * this.retryCount;
           console.log(`[LiveService] Connection failed, retrying in ${delay}ms... (Attempt ${this.retryCount}/${this.maxRetries})`);
 
-          // Optionally notify user via a special callback or just log
-          // For now, we silent retry but if we wanted to show UI updates we'd need a new callback type
-
-          // Clean up partial state before retry (but keep media stream if possible to avoid re-prompt)
           if (this.sessionPromise) {
               this.sessionPromise = null;
           }

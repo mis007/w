@@ -38,36 +38,36 @@ export const getNextApiKey = (): string => {
 };
 
 // Base URL Handling
-// GLOBAL_BASE_URL: Standard Google Endpoint
-// CN_BASE_URL: Dedicated Proxy/Relay for Mainland China
-// User provided router: https://router.shengsuanyun.com/api
+// GLOBAL_BASE_URL: Standard Google Endpoint (or whatever is in env)
 const envBaseUrl = process.env.API_BASE_URL;
-
-// Default to the provided router URL if not overridden by env
-const DEFAULT_ROUTER_URL = "https://router.shengsuanyun.com/api";
-
 const cleanBaseUrl = (
     envBaseUrl && 
     typeof envBaseUrl === 'string' && 
     envBaseUrl !== "undefined" && 
     envBaseUrl !== "null" && 
     envBaseUrl.trim() !== ""
-) ? envBaseUrl : DEFAULT_ROUTER_URL;
+) ? envBaseUrl : undefined; // Default to undefined (Official Google) if not set
+
+// CN_BASE_URL: Dedicated Proxy/Relay for Mainland China
+// User provided router: https://router.shengsuanyun.com/api
+const ROUTER_URL = "https://router.shengsuanyun.com/api";
 
 export const CONFIG = {
   getNextApiKey,
+  // Global Line (Standard)
   API_BASE_URL: cleanBaseUrl,
   
-  // Potential CN Proxy URL (In production, this would be your domestic relay server)
-  // For this demo, it falls back to the standard URL, but the architecture allows separation.
-  CN_API_BASE_URL: cleanBaseUrl, 
+  // CN Line (Domestic Router)
+  CN_API_BASE_URL: ROUTER_URL,
 
   // Model Versions
   MODELS: {
-    // Updated to the model supported by the router
-    LIVE: 'google/gemini-2.5-flash-live',
-    // Fallback/Text models (might need standard names if router supports them, or keep defaults if using standard API for text)
-    // Assuming the router proxies standard names too, or we use standard ones for text.
+    // Standard Official Model Name
+    LIVE: 'gemini-2.5-flash-native-audio-preview-09-2025',
+
+    // Router Specific Model Name (as per docs)
+    CN_LIVE: 'google/gemini-2.5-flash-live',
+
     TEXT: 'gemini-2.5-flash',
     TTS: 'gemini-2.5-flash-preview-tts', 
   },

@@ -354,7 +354,11 @@ const App: React.FC = () => {
     }
     
     try {
-        liveService.current = new LiveService();
+        // Dual-Line Architecture: Select Config based on Mode
+        const baseUrl = serviceMode === ServiceMode.CN ? CONFIG.CN_API_BASE_URL : CONFIG.API_BASE_URL;
+        const model = serviceMode === ServiceMode.CN ? CONFIG.MODELS.CN_LIVE : CONFIG.MODELS.LIVE;
+
+        liveService.current = new LiveService(baseUrl, model);
         
         await liveService.current.connect({
             onOpen: () => {
