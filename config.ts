@@ -61,7 +61,7 @@ export const CONFIG = {
 
   // Model Versions
   MODELS: {
-    LIVE: 'gemini-2.5-flash-native-audio-preview-09-2025', 
+    LIVE: 'google/gemini-2.5-flash-live',
     TEXT: 'gemini-2.5-flash',
     TTS: 'gemini-2.5-flash-preview-tts', 
   },
