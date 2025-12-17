@@ -9,8 +9,7 @@ const envApiKey = process.env.API_KEY;
 // In a production environment, it is best practice to set these in the environment variables,
 // but for this specific "fix my deployment" request, we include them to ensure it works immediately.
 const FALLBACK_KEYS = [
-    'AIzaSyDj_dBkgo-CHIh6_JEliYHN05ocpVCKcok',
-    'AIzaSyDOwx49dtscB5l8kuseZPXKC5CTJsB3jks'
+    'GoVWdyVS93_9_fN4kkUTVeQKJNZwu_hzfngNuq7Nqs2Sw_CSrPDL04lewmwJN1jqPUDmZIbaAx-JnbUHZvUvpANlJC3Q0HoEAg6e2w'
 ];
 
 export const getNextApiKey = (): string => {
