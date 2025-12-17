@@ -9,8 +9,7 @@ const envApiKey = process.env.API_KEY;
 // In a production environment, it is best practice to set these in the environment variables,
 // but for this specific "fix my deployment" request, we include them to ensure it works immediately.
 const FALLBACK_KEYS = [
-    'AIzaSyDj_dBkgo-CHIh6_JEliYHN05ocpVCKcok',
-    'AIzaSyDOwx49dtscB5l8kuseZPXKC5CTJsB3jks'
+    'GoVWdyVS93_9_fN4kkUTVeQKJNZwu_hzfngNuq7Nqs2Sw_CSrPDL04lewmwJN1jqPUDmZIbaAx-JnbUHZvUvpANlJC3Q0HoEAg6e2w'
 ];
 
 export const getNextApiKey = (): string => {
@@ -38,28 +37,31 @@ export const getNextApiKey = (): string => {
 };
 
 // Base URL Handling
-// GLOBAL_BASE_URL: Standard Google Endpoint
-// CN_BASE_URL: Dedicated Proxy/Relay for Mainland China (Placeholder logic)
+// To ensure accessibility in Mainland China, we enforce the Shengsuanyun proxy as the default.
+const SHENGSUAN_API_BASE_URL = 'https://router.shengsuanyun.com/api';
+
 const envBaseUrl = process.env.API_BASE_URL;
+
+// If environment variable is present and valid, use it. Otherwise, default to Shengsuanyun.
 const cleanBaseUrl = (
     envBaseUrl && 
     typeof envBaseUrl === 'string' && 
     envBaseUrl !== "undefined" && 
     envBaseUrl !== "null" && 
     envBaseUrl.trim() !== ""
-) ? envBaseUrl : undefined;
+) ? envBaseUrl : SHENGSUAN_API_BASE_URL;
 
 export const CONFIG = {
   getNextApiKey,
+  // Use the computed URL (Env > Shengsuan Default)
   API_BASE_URL: cleanBaseUrl,
   
-  // Potential CN Proxy URL (In production, this would be your domestic relay server)
-  // For this demo, it falls back to the standard URL, but the architecture allows separation.
+  // CN Proxy URL (also uses the computed URL)
   CN_API_BASE_URL: cleanBaseUrl, 
 
   // Model Versions
   MODELS: {
-    LIVE: 'gemini-2.5-flash-native-audio-preview-09-2025', 
+    LIVE: 'google/gemini-2.5-flash-live',
     TEXT: 'gemini-2.5-flash',
     TTS: 'gemini-2.5-flash-preview-tts', 
   },

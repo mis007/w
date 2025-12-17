@@ -9,11 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.3",
-    "vite": "^7.3.0",
-    "react-dom": "^19.2.3",
+    "@google/genai": "^1.33.0",
     "@vitejs/plugin-react": "^5.1.2",
-    "@google/genai": "^1.33.0"
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "vite": "^7.3.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
