@@ -2,19 +2,43 @@
 // Unified Configuration File
 
 // API Key Logic
+// We accept keys from the environment or fall back to the provided hardcoded keys.
 const envApiKey = process.env.API_KEY;
 
+// The user provided two keys. We include them here as fallbacks.
+// In a production environment, it is best practice to set these in the environment variables,
+// but for this specific "fix my deployment" request, we include them to ensure it works immediately.
+const FALLBACK_KEYS = [
+    'AIzaSyDj_dBkgo-CHIh6_JEliYHN05ocpVCKcok',
+    'AIzaSyDOwx49dtscB5l8kuseZPXKC5CTJsB3jks'
+];
+
 export const getNextApiKey = (): string => {
-    if (!envApiKey || envApiKey === 'undefined' || envApiKey === '') {
-        console.error("API_KEY is missing in environment variables.");
+    let keys: string[] = [];
+
+    // 1. Try to get key(s) from environment
+    if (envApiKey && envApiKey !== 'undefined' && envApiKey !== '') {
+        // Assume environment variable might be comma-separated if multiple are provided
+        keys = envApiKey.split(',').map(k => k.trim()).filter(k => k !== '');
+    }
+
+    // 2. If no environment keys found, use fallbacks
+    if (keys.length === 0) {
+        keys = FALLBACK_KEYS;
+    }
+
+    if (keys.length === 0) {
+        console.error("API_KEY is missing in environment variables and no fallbacks available.");
         return '';
     }
-    return envApiKey;
+
+    // 3. Randomly select a key (Simple rotation strategy)
+    const randomIndex = Math.floor(Math.random() * keys.length);
+    return keys[randomIndex];
 };
 
 // Base URL Handling
-// GLOBAL_BASE_URL: Standard Google Endpoint
-// CN_BASE_URL: Dedicated Proxy/Relay for Mainland China (Placeholder logic)
+// GLOBAL_BASE_URL: Standard Google Endpoint (or whatever is in env)
 const envBaseUrl = process.env.API_BASE_URL;
 const cleanBaseUrl = (
     envBaseUrl && 
@@ -22,19 +46,28 @@ const cleanBaseUrl = (
     envBaseUrl !== "undefined" && 
     envBaseUrl !== "null" && 
     envBaseUrl.trim() !== ""
-) ? envBaseUrl : undefined;
+) ? envBaseUrl : undefined; // Default to undefined (Official Google) if not set
+
+// CN_BASE_URL: Dedicated Proxy/Relay for Mainland China
+// User provided router: https://router.shengsuanyun.com/api
+const ROUTER_URL = "https://router.shengsuanyun.com/api";
 
 export const CONFIG = {
   getNextApiKey,
+  // Global Line (Standard)
   API_BASE_URL: cleanBaseUrl,
   
-  // Potential CN Proxy URL (In production, this would be your domestic relay server)
-  // For this demo, it falls back to the standard URL, but the architecture allows separation.
-  CN_API_BASE_URL: cleanBaseUrl, 
+  // CN Line (Domestic Router)
+  CN_API_BASE_URL: ROUTER_URL,
 
   // Model Versions
   MODELS: {
-    LIVE: 'gemini-2.5-flash-native-audio-preview-09-2025', 
+    // Standard Official Model Name
+    LIVE: 'gemini-2.5-flash-native-audio-preview-09-2025',
+
+    // Router Specific Model Name (as per docs)
+    CN_LIVE: 'google/gemini-2.5-flash-live',
+
     TEXT: 'gemini-2.5-flash',
     TTS: 'gemini-2.5-flash-preview-tts', 
   },

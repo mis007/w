@@ -248,13 +248,17 @@ const App: React.FC = () => {
   const handleModeToggle = (newMode: ServiceMode) => {
       endCall();
       stopFallbackRecording();
+      setIsFallbackMode(false); // Reset fallback mode when switching lines manually
+
+      // Ensure we set the mode first
+      setServiceMode(newMode);
 
       if (newMode === ServiceMode.GLOBAL) {
-          startNetworkCheck();
+          setToastMessage("已切换至全球线路 (Google Official) 🌍");
+          addMessage('model', '已切换回全球线路，准备好实时通话啦！');
       } else {
-          setServiceMode(ServiceMode.CN);
-          setToastMessage("已切换至 CN 专线 (稳定优先) 🇨🇳");
-          addMessage('model', '您好呀！小萌已切换到国内稳定线路，请按住按钮说话哦~');
+          setToastMessage("已切换至 CN 专线 (胜算云加速) 🚀");
+          addMessage('model', '已切换到国内高速专线，实时语音更流畅哦！');
       }
   };
 
@@ -319,26 +323,29 @@ const App: React.FC = () => {
   };
 
   const handleVoiceInteraction = async (action: 'press' | 'release') => {
-      if (serviceMode === ServiceMode.CN || isFallbackMode) {
+      // Only use Fallback (WeChat style) if we are in explicit fallback mode due to errors.
+      // Both Global and CN modes now support Real-time Live API.
+      if (isFallbackMode) {
           if (action === 'press') {
               startFallbackRecording(); 
           } else if (action === 'release') {
               stopFallbackRecording();
           }
       } else {
+          // Real-time Mode (Global or CN)
           if (action === 'press') {
             if (isCallActive) {
                 endCall();
             } else {
                 if (isConnecting || isCheckingMic) return;
                 setIsCheckingMic(true);
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                // Simple mic check
                 const hasMic = await checkMicrophone();
-                setIsCheckingMic(false);
                 if (hasMic) {
                     startCall();
                 } else {
                     setToastMessage("麦克风不可用");
+                    setIsCheckingMic(false);
                 }
             }
           }
@@ -354,7 +361,11 @@ const App: React.FC = () => {
     }
     
     try {
-        liveService.current = new LiveService();
+        // Dual-Line Architecture: Select Config based on Mode
+        const baseUrl = serviceMode === ServiceMode.CN ? CONFIG.CN_API_BASE_URL : CONFIG.API_BASE_URL;
+        const model = serviceMode === ServiceMode.CN ? CONFIG.MODELS.CN_LIVE : CONFIG.MODELS.LIVE;
+
+        liveService.current = new LiveService(baseUrl, model);
         
         await liveService.current.connect({
             onOpen: () => {
@@ -706,9 +717,13 @@ const App: React.FC = () => {
            <h2 className="text-xs text-gray-400 font-medium mt-1 tracking-wider">村官智能体 伴您游</h2>
         </div>
         <div className="flex flex-col items-end gap-1">
-            <ModeSwitch mode={serviceMode} onToggle={handleModeToggle} />
             <WeatherWidget />
         </div>
+      </div>
+
+      {/* Global Mode Switch - Moved to top-right fixed position for global accessibility */}
+      <div className="fixed top-20 right-4 z-[60] opacity-90 hover:opacity-100 transition-opacity">
+           <ModeSwitch mode={serviceMode} onToggle={handleModeToggle} />
       </div>
 
       <div className="relative z-10 flex-1 pl-6 pr-0 py-3 grid grid-cols-[1fr_auto] gap-2 animate-slide-up">
